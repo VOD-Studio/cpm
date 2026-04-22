@@ -40,6 +40,8 @@ func (s *Server) setupRoutes() {
 	usageH := handler.NewUsageHandler(usageSvc)
 	dashH := handler.NewDashboardHandler(usageSvc)
 	glmUsageH := handler.NewGlmUsageHandler(service.NewGlmUsageService())
+	volcengineUsageH := handler.NewVolcengineUsageHandler(service.NewVolcengineUsageService())
+	aliUsageH := handler.NewAliUsageHandler(service.NewAliUsageService())
 
 	// 公开路由（无需鉴权）
 	s.router.HandleFunc("POST /api/v1/auth/register", authH.Register)
@@ -102,6 +104,12 @@ func (s *Server) setupRoutes() {
 
 	// GLM 用量查询（后端代理）
 	s.router.HandleFunc("POST /api/v1/glm/usage", middleware.Auth(s.cfg, glmUsageH.Query))
+
+	// 火山引擎用量查询（后端代理）
+	s.router.HandleFunc("POST /api/v1/volcengine/usage", middleware.Auth(s.cfg, volcengineUsageH.Query))
+
+	// 阿里云用量查询（后端代理）
+	s.router.HandleFunc("POST /api/v1/ali/usage", middleware.Auth(s.cfg, aliUsageH.Query))
 
 	// 模型管理（管理员添加模型）
 	s.router.HandleFunc("POST /api/v1/models", middleware.Auth(s.cfg, func(w http.ResponseWriter, r *http.Request) {

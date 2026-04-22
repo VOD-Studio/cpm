@@ -186,3 +186,14 @@ export interface GlmUsageResponse {
   tool_usage: any
   quota_limit: any
 }
+
+// 火山引擎用量查询请求
+export interface VolcengineUsageRequest {
+  ak: string
+  sk: string
+}
+
+// 阿里云用量查询请求
+export interface AliUsageRequest {
+  cookie: string
+}

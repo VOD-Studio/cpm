@@ -19,6 +19,8 @@ import type {
   UpdateModelRequest,
   GlmUsageRequest,
   GlmUsageResponse,
+  VolcengineUsageRequest,
+  AliUsageRequest,
 } from '@/types'
 
 const api = axios.create({
@@ -139,6 +141,16 @@ export const dashboardApi = {
 // ===== GLM Usage =====
 export const glmUsageApi = {
   query: (data: GlmUsageRequest) => api.post<GlmUsageResponse>('/glm/usage', data),
+}
+
+// ===== Volcengine Usage =====
+export const volcengineUsageApi = {
+  query: (data: VolcengineUsageRequest) => api.post('/volcengine/usage', data),
+}
+
+// ===== Ali Usage =====
+export const aliUsageApi = {
+  query: (data: AliUsageRequest) => api.post('/ali/usage', data),
 }
 
 export default api
