@@ -4,7 +4,7 @@ export default function SettingsPage() {
   const { user } = useAuthStore()
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <h2 className="mb-6 text-xl font-bold text-white">设置</h2>
 
       <div className="max-w-2xl space-y-6">

@@ -3,7 +3,30 @@ export interface User {
   username: string
   email: string
   role: 'admin' | 'user'
+  is_active: boolean
   created_at: string
+}
+
+export interface Role {
+  id: string
+  name: string
+  display_name: string
+  description: string
+  permissions: string[]
+  is_system: boolean
+  created_at: string
+}
+
+export interface UserWithRoles {
+  id: string
+  username: string
+  email: string
+  role: string
+  is_active: boolean
+  roles: Role[]
+  permissions: string[]
+  created_at: string
+  updated_at: string
 }
 
 export interface AuthTokens {
@@ -52,6 +75,7 @@ export interface ApiKey {
   last_tested_at: string | null
   last_status: 'valid' | 'invalid' | 'error' | null
   available_models?: Model[]  // 该 Key 可用的模型列表
+  shared_by?: string  // 共享者用户名，非空表示是别人共享的
   created_at: string
   updated_at: string
 }

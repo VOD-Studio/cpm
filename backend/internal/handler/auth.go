@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"coding-plan-manager/backend/internal/repository"
 	"coding-plan-manager/backend/internal/service"
 	"coding-plan-manager/backend/pkg/response"
 )
@@ -96,7 +97,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, map[string]any{"message": "已退出登录"})
 }
 
-// Me 获取当前用户信息（需要鉴权，由中间件注入 X-User-ID）
+// Me 获取当前用户信息（含权限）
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("X-User-ID")
 	user, err := h.authSvc.GetUser(r.Context(), userID)
@@ -104,5 +105,19 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusNotFound, "user_not_found", "用户不存在")
 		return
 	}
-	response.JSON(w, http.StatusOK, user)
+	// 查询用户权限
+	perms, _ := repository.GetUserPermissions(r.Context(), userID)
+	if perms == nil {
+		perms = []string{}
+	}
+	response.JSON(w, http.StatusOK, map[string]any{
+		"id":          user.ID,
+		"username":    user.Username,
+		"email":       user.Email,
+		"role":        user.Role,
+		"is_active":   user.IsActive,
+		"permissions": perms,
+		"created_at":  user.CreatedAt,
+		"updated_at":  user.UpdatedAt,
+	})
 }

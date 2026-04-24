@@ -22,7 +22,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-primary)]">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]/80 p-8 shadow-2xl backdrop-blur-xl">
+      <div className="mx-4 w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]/80 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-bold text-white">
             <span className="text-indigo-400">CPM</span> Manager

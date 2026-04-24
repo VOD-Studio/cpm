@@ -70,6 +70,8 @@ func runMigrations(cfg *config.Config) error {
 		"008_add_max_output_tokens_and_zhipu_models",
 		"009_add_volcengine_models",
 		"010_fix_ali_models_tokens",
+		"011_create_roles",
+		"012_api_key_shares",
 	}
 	// 检测迁移文件目录
 	migrationDir := "migrations"

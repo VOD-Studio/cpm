@@ -7,18 +7,35 @@ import (
 	"coding-plan-manager/backend/internal/model"
 )
 
-// ListApiKeys 获取指定用户的所有 API Key（关联平台信息和可用模型）
+// ListApiKeys 获取指定用户的所有 API Key（自己的 + 共享给自己的），关联平台信息和可用模型
 func ListApiKeys(ctx context.Context, userID string) ([]model.ApiKey, error) {
+	// 查询自己的 Key（shared_by = NULL）
 	rows, err := DB.Query(ctx,
 		`SELECT k.id, k.user_id, k.provider_id, k.name, k.key_encrypted,
 		        COALESCE(k.base_url, ''), COALESCE(k.base_urls::text, '[]'),
 		        COALESCE(k.plan_type, ''), k.is_active, k.last_tested_at, k.last_status,
 		        k.created_at, k.updated_at,
-		        p.id, p.name, p.slug, COALESCE(p.description, ''), COALESCE(p.logo_url, ''), p.created_at
+		        p.id, p.name, p.slug, COALESCE(p.description, ''), COALESCE(p.logo_url, ''), p.created_at,
+		        NULL::text
 		 FROM api_keys k
 		 JOIN providers p ON k.provider_id = p.id
 		 WHERE k.user_id = $1
-		 ORDER BY k.created_at DESC`, userID)
+
+		 UNION ALL
+
+		 SELECT k.id, k.user_id, k.provider_id, k.name, k.key_encrypted,
+		        COALESCE(k.base_url, ''), COALESCE(k.base_urls::text, '[]'),
+		        COALESCE(k.plan_type, ''), k.is_active, k.last_tested_at, k.last_status,
+		        k.created_at, k.updated_at,
+		        p.id, p.name, p.slug, COALESCE(p.description, ''), COALESCE(p.logo_url, ''), p.created_at,
+		        u.username
+		 FROM api_keys k
+		 JOIN providers p ON k.provider_id = p.id
+		 JOIN api_key_shares s ON s.api_key_id = k.id
+		 JOIN users u ON u.id = s.shared_by
+		 WHERE s.user_id = $1
+
+		 ORDER BY 12 DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -27,16 +44,19 @@ func ListApiKeys(ctx context.Context, userID string) ([]model.ApiKey, error) {
 	for rows.Next() {
 		var k model.ApiKey
 		var p model.Provider
+		var sharedBy *string
 		if err := rows.Scan(
 			&k.ID, &k.UserID, &k.ProviderID, &k.Name, &k.KeyEncrypted,
 			&k.BaseURL, &k.BaseURLs,
 			&k.PlanType, &k.IsActive, &k.LastTestedAt, &k.LastStatus,
 			&k.CreatedAt, &k.UpdatedAt,
 			&p.ID, &p.Name, &p.Slug, &p.Description, &p.LogoURL, &p.CreatedAt,
+			&sharedBy,
 		); err != nil {
 			return nil, err
 		}
 		k.Provider = &p
+		k.SharedBy = sharedBy
 		list = append(list, k)
 	}
 
@@ -179,14 +199,16 @@ func UpdateKeyTestResult(ctx context.Context, id string, status string) error {
 	return err
 }
 
-// GetApiKeyByID 根据 ID 获取 API Key（含加密后的 key）
+// GetApiKeyByID 根据 ID 获取 API Key（拥有者或共享用户均可访问）
 func GetApiKeyByID(ctx context.Context, id, userID string) (*model.ApiKey, error) {
 	var k model.ApiKey
 	err := DB.QueryRow(ctx,
 		`SELECT id, user_id, provider_id, name, key_encrypted,
 		        COALESCE(base_url, ''), COALESCE(base_urls::text, '[]'),
 		        COALESCE(plan_type, ''), is_active, last_tested_at, last_status, created_at, updated_at
-		 FROM api_keys WHERE id = $1 AND user_id = $2`, id, userID,
+		 FROM api_keys WHERE id = $1 AND (user_id = $2 OR EXISTS(
+		 	SELECT 1 FROM api_key_shares WHERE api_key_id = $1 AND user_id = $2
+		 ))`, id, userID,
 	).Scan(&k.ID, &k.UserID, &k.ProviderID, &k.Name, &k.KeyEncrypted,
 		&k.BaseURL, &k.BaseURLs,
 		&k.PlanType, &k.IsActive, &k.LastTestedAt, &k.LastStatus, &k.CreatedAt, &k.UpdatedAt)
@@ -194,4 +216,76 @@ func GetApiKeyByID(ctx context.Context, id, userID string) (*model.ApiKey, error
 		return nil, err
 	}
 	return &k, nil
+}
+
+// ===== API Key 共享 =====
+
+// ShareApiKey 共享 Key 给指定用户
+func ShareApiKey(ctx context.Context, apiKeyID, userID, sharedBy string) error {
+	_, err := DB.Exec(ctx,
+		`INSERT INTO api_key_shares (api_key_id, user_id, shared_by) VALUES ($1, $2, $3)
+		 ON CONFLICT (api_key_id, user_id) DO NOTHING`,
+		apiKeyID, userID, sharedBy)
+	return err
+}
+
+// UnshareApiKey 取消共享
+func UnshareApiKey(ctx context.Context, apiKeyID, userID string) error {
+	_, err := DB.Exec(ctx,
+		`DELETE FROM api_key_shares WHERE api_key_id = $1 AND user_id = $2`,
+		apiKeyID, userID)
+	return err
+}
+
+// GetApiKeyShares 获取 Key 共享给了哪些用户
+func GetApiKeyShares(ctx context.Context, apiKeyID string) ([]model.User, error) {
+	rows, err := DB.Query(ctx,
+		`SELECT u.id, u.username, u.email, u.role, u.is_active, u.created_at, u.updated_at
+		 FROM api_key_shares s
+		 JOIN users u ON u.id = s.user_id
+		 WHERE s.api_key_id = $1
+		 ORDER BY u.username`, apiKeyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []model.User
+	for rows.Next() {
+		var u model.User
+		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.IsActive, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// IsApiKeyOwner 检查用户是否是 Key 的拥有者
+func IsApiKeyOwner(ctx context.Context, apiKeyID, userID string) (bool, error) {
+	var exists bool
+	err := DB.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM api_keys WHERE id = $1 AND user_id = $2)`,
+		apiKeyID, userID).Scan(&exists)
+	return exists, err
+}
+
+// ReplaceApiKeyShares 替换 Key 的所有共享（先删后插）
+func ReplaceApiKeyShares(ctx context.Context, apiKeyID, sharedBy string, userIDs []string) error {
+	tx, err := DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `DELETE FROM api_key_shares WHERE api_key_id = $1`, apiKeyID); err != nil {
+		return err
+	}
+	for _, uid := range userIDs {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO api_key_shares (api_key_id, user_id, shared_by) VALUES ($1, $2, $3)`,
+			apiKeyID, uid, sharedBy); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }

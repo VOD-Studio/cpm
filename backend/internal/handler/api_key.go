@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"coding-plan-manager/backend/internal/model"
 	"coding-plan-manager/backend/internal/service"
 	"coding-plan-manager/backend/pkg/response"
 )
@@ -125,4 +126,35 @@ func (h *ApiKeyHandler) Decrypt(w http.ResponseWriter, r *http.Request, id strin
 		return
 	}
 	response.JSON(w, http.StatusOK, map[string]any{"key": plain})
+}
+
+// GetShares 获取 Key 的共享用户列表
+func (h *ApiKeyHandler) GetShares(w http.ResponseWriter, r *http.Request, id string) {
+	userID := r.Header.Get("X-User-ID")
+	users, err := h.keySvc.GetKeyShares(r.Context(), id, userID)
+	if err != nil {
+		response.Error(w, http.StatusForbidden, "forbidden", err.Error())
+		return
+	}
+	if users == nil {
+		users = []model.User{}
+	}
+	response.JSON(w, http.StatusOK, users)
+}
+
+// SetShares 设置 Key 共享给哪些用户
+func (h *ApiKeyHandler) SetShares(w http.ResponseWriter, r *http.Request, id string) {
+	userID := r.Header.Get("X-User-ID")
+	var req struct {
+		UserIDs []string `json:"user_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid_request", "请求参数错误")
+		return
+	}
+	if err := h.keySvc.SetKeyShares(r.Context(), id, userID, req.UserIDs); err != nil {
+		response.Error(w, http.StatusForbidden, "forbidden", err.Error())
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]any{"message": "共享设置已更新"})
 }

@@ -43,6 +43,12 @@ func (s *Server) setupRoutes() {
 	volcengineUsageH := handler.NewVolcengineUsageHandler(service.NewVolcengineUsageService())
 	aliUsageH := handler.NewAliUsageHandler(service.NewAliUsageService())
 
+	// 用户管理与角色管理
+	userAdminSvc := service.NewUserAdminService()
+	roleSvc := service.NewRoleService()
+	userAdminH := handler.NewUserAdminHandler(userAdminSvc)
+	roleH := handler.NewRoleHandler(roleSvc)
+
 	// 公开路由（无需鉴权）
 	s.router.HandleFunc("POST /api/v1/auth/register", authH.Register)
 	s.router.HandleFunc("POST /api/v1/auth/login", authH.Login)
@@ -51,20 +57,30 @@ func (s *Server) setupRoutes() {
 
 	// 受保护路由（需鉴权）
 	s.router.HandleFunc("GET /api/v1/auth/me", middleware.Auth(s.cfg, authH.Me))
-	s.router.HandleFunc("GET /api/v1/keys", middleware.Auth(s.cfg, keyH.List))
-	s.router.HandleFunc("POST /api/v1/keys", middleware.Auth(s.cfg, keyH.Create))
-	s.router.HandleFunc("PUT /api/v1/keys/{id}", middleware.Auth(s.cfg, func(w http.ResponseWriter, r *http.Request) {
+
+	// API Key 管理（需要 keys 权限）
+	s.router.HandleFunc("GET /api/v1/keys", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "keys:read", keyH.List)))
+	s.router.HandleFunc("POST /api/v1/keys", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "keys:write", keyH.Create)))
+	s.router.HandleFunc("PUT /api/v1/keys/{id}", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "keys:write", func(w http.ResponseWriter, r *http.Request) {
 		keyH.Update(w, r, r.PathValue("id"))
-	}))
-	s.router.HandleFunc("DELETE /api/v1/keys/{id}", middleware.Auth(s.cfg, func(w http.ResponseWriter, r *http.Request) {
+	})))
+	s.router.HandleFunc("DELETE /api/v1/keys/{id}", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "keys:delete", func(w http.ResponseWriter, r *http.Request) {
 		keyH.Delete(w, r, r.PathValue("id"))
-	}))
-	s.router.HandleFunc("POST /api/v1/keys/{id}/test", middleware.Auth(s.cfg, func(w http.ResponseWriter, r *http.Request) {
+	})))
+	s.router.HandleFunc("POST /api/v1/keys/{id}/test", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "keys:read", func(w http.ResponseWriter, r *http.Request) {
 		keyH.Test(w, r, r.PathValue("id"))
-	}))
-	s.router.HandleFunc("GET /api/v1/keys/{id}/decrypt", middleware.Auth(s.cfg, func(w http.ResponseWriter, r *http.Request) {
+	})))
+	s.router.HandleFunc("GET /api/v1/keys/{id}/decrypt", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "keys:read", func(w http.ResponseWriter, r *http.Request) {
 		keyH.Decrypt(w, r, r.PathValue("id"))
-	}))
+	})))
+
+	// API Key 共享管理
+	s.router.HandleFunc("GET /api/v1/keys/{id}/shares", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "keys:write", func(w http.ResponseWriter, r *http.Request) {
+		keyH.GetShares(w, r, r.PathValue("id"))
+	})))
+	s.router.HandleFunc("PUT /api/v1/keys/{id}/shares", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "keys:write", func(w http.ResponseWriter, r *http.Request) {
+		keyH.SetShares(w, r, r.PathValue("id"))
+	})))
 
 	s.router.HandleFunc("GET /api/v1/models", middleware.Auth(s.cfg, func(w http.ResponseWriter, r *http.Request) {
 		list, err := modelSvc.List(r.Context())
@@ -111,13 +127,8 @@ func (s *Server) setupRoutes() {
 	// 阿里云用量查询（后端代理）
 	s.router.HandleFunc("POST /api/v1/ali/usage", middleware.Auth(s.cfg, aliUsageH.Query))
 
-	// 模型管理（管理员添加模型）
-	s.router.HandleFunc("POST /api/v1/models", middleware.Auth(s.cfg, func(w http.ResponseWriter, r *http.Request) {
-		role := r.Header.Get("X-Role")
-		if role != "admin" {
-			response.Error(w, http.StatusForbidden, "forbidden", "仅管理员可添加模型")
-			return
-		}
+	// 模型管理
+	s.router.HandleFunc("POST /api/v1/models", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "models:write", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			ProviderID       string   `json:"provider_id"`
 			ModelID          string   `json:"model_id"`
@@ -143,10 +154,10 @@ func (s *Server) setupRoutes() {
 			return
 		}
 		response.JSON(w, http.StatusCreated, m)
-	}))
+	})))
 
 	// 更新模型
-	s.router.HandleFunc("PUT /api/v1/models/{id}", middleware.Auth(s.cfg, func(w http.ResponseWriter, r *http.Request) {
+	s.router.HandleFunc("PUT /api/v1/models/{id}", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "models:write", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			ProviderID       string   `json:"provider_id"`
 			ModelID          string   `json:"model_id"`
@@ -169,19 +180,19 @@ func (s *Server) setupRoutes() {
 			return
 		}
 		response.JSON(w, http.StatusOK, m)
-	}))
+	})))
 
 	// 删除模型
-	s.router.HandleFunc("DELETE /api/v1/models/{id}", middleware.Auth(s.cfg, func(w http.ResponseWriter, r *http.Request) {
+	s.router.HandleFunc("DELETE /api/v1/models/{id}", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "models:delete", func(w http.ResponseWriter, r *http.Request) {
 		if err := modelSvc.Delete(r.Context(), r.PathValue("id")); err != nil {
 			response.Error(w, http.StatusInternalServerError, "delete_failed", "删除模型失败")
 			return
 		}
 		response.JSON(w, http.StatusOK, map[string]any{"message": "已删除"})
-	}))
+	})))
 
-	// 平台管理（添加自定义平台，如 Ali、火山、GLM 等）
-	s.router.HandleFunc("POST /api/v1/providers", middleware.Auth(s.cfg, func(w http.ResponseWriter, r *http.Request) {
+	// 平台管理
+	s.router.HandleFunc("POST /api/v1/providers", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "providers:write", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Name        string `json:"name"`
 			Slug        string `json:"slug"`
@@ -202,10 +213,10 @@ func (s *Server) setupRoutes() {
 			return
 		}
 		response.JSON(w, http.StatusCreated, p)
-	}))
+	})))
 
 	// 更新平台
-	s.router.HandleFunc("PUT /api/v1/providers/{id}", middleware.Auth(s.cfg, func(w http.ResponseWriter, r *http.Request) {
+	s.router.HandleFunc("PUT /api/v1/providers/{id}", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "providers:write", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Name        string `json:"name"`
 			Slug        string `json:"slug"`
@@ -222,17 +233,31 @@ func (s *Server) setupRoutes() {
 			return
 		}
 		response.JSON(w, http.StatusOK, p)
-	}))
+	})))
 
 	// 删除平台
-	s.router.HandleFunc("DELETE /api/v1/providers/{id}", middleware.Auth(s.cfg, func(w http.ResponseWriter, r *http.Request) {
+	s.router.HandleFunc("DELETE /api/v1/providers/{id}", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "providers:delete", func(w http.ResponseWriter, r *http.Request) {
 		provSvc := service.NewProviderService()
 		if err := provSvc.Delete(r.Context(), r.PathValue("id")); err != nil {
 			response.Error(w, http.StatusInternalServerError, "delete_failed", "删除平台失败，可能存在关联的模型或 API Key")
 			return
 		}
 		response.JSON(w, http.StatusOK, map[string]any{"message": "已删除"})
-	}))
+	})))
+
+	// ===== 用户管理路由（需要权限） =====
+	s.router.HandleFunc("GET /api/v1/users", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "users:read", userAdminH.ListUsers)))
+	s.router.HandleFunc("POST /api/v1/users", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "users:write", userAdminH.CreateUser)))
+	s.router.HandleFunc("PUT /api/v1/users/{id}", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "users:write", userAdminH.UpdateUser)))
+	s.router.HandleFunc("DELETE /api/v1/users/{id}", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "users:delete", userAdminH.DeleteUser)))
+	s.router.HandleFunc("PUT /api/v1/users/{id}/active", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "users:write", userAdminH.SetActive)))
+	s.router.HandleFunc("PUT /api/v1/users/{id}/roles", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "users:write", userAdminH.AssignRoles)))
+
+	// ===== 角色管理路由（需要权限） =====
+	s.router.HandleFunc("GET /api/v1/roles", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "roles:read", roleH.List)))
+	s.router.HandleFunc("POST /api/v1/roles", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "roles:write", roleH.Create)))
+	s.router.HandleFunc("PUT /api/v1/roles/{id}", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "roles:write", roleH.Update)))
+	s.router.HandleFunc("DELETE /api/v1/roles/{id}", middleware.Auth(s.cfg, middleware.RequirePermission(s.cfg, "roles:delete", roleH.Delete)))
 }
 
 // Handler 返回带有 CORS 中间件的 http.Handler

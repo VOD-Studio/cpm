@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <!-- Background rounded square -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#6366f1"/>
+  <!-- Subtle gradient overlay -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#g)" opacity="0.3"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fff"/>
+      <stop offset="100%" stop-color="#000"/>
+    </linearGradient>
+  </defs>
+  <!-- Letter C -->
+  <path d="M52 38c-12 0-20 10-20 26s8 26 20 26c8 0 14-4 18-10l-8-6c-2 4-6 7-10 7-7 0-12-7-12-17s5-17 12-17c4 0 8 3 10 7l8-6c-4-6-10-10-18-10z" fill="#fff"/>
+  <!-- Letter P -->
+  <path d="M58 38h16c10 0 16 6 16 14s-6 14-16 14h-8v20h-8V38zm8 6v16h8c6 0 8-3 8-8s-2-8-8-8h-8z" fill="#fff" transform="translate(12,0)"/>
+  <!-- Small accent dot -->
+  <circle cx="96" cy="92" r="8" fill="#f59e0b"/>
+</svg>

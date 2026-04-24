@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"coding-plan-manager/backend/internal/config"
 	"coding-plan-manager/backend/internal/model"
@@ -82,4 +83,36 @@ func (s *ApiKeyService) Test(ctx context.Context, id, userID string) (string, er
 	status := "valid"
 	_ = repository.UpdateKeyTestResult(ctx, id, status)
 	return status, nil
+}
+
+// ===== Key 共享 =====
+
+// GetKeyShares 获取 Key 共享给了哪些用户
+func (s *ApiKeyService) GetKeyShares(ctx context.Context, apiKeyID, userID string) ([]model.User, error) {
+	owner, err := repository.IsApiKeyOwner(ctx, apiKeyID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !owner {
+		return nil, errors.New("只有 Key 拥有者才能查看共享列表")
+	}
+	return repository.GetApiKeyShares(ctx, apiKeyID)
+}
+
+// SetKeyShares 设置 Key 共享给哪些用户（整体替换）
+func (s *ApiKeyService) SetKeyShares(ctx context.Context, apiKeyID, userID string, targetUserIDs []string) error {
+	owner, err := repository.IsApiKeyOwner(ctx, apiKeyID, userID)
+	if err != nil {
+		return err
+	}
+	if !owner {
+		return errors.New("只有 Key 拥有者才能设置共享")
+	}
+	// 不能共享给自己
+	for _, uid := range targetUserIDs {
+		if uid == userID {
+			return errors.New("不能共享给自己")
+		}
+	}
+	return repository.ReplaceApiKeyShares(ctx, apiKeyID, userID, targetUserIDs)
 }

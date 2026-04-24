@@ -8,8 +8,25 @@ type User struct {
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"`
 	Role         string    `json:"role"`
+	IsActive     bool      `json:"is_active"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type Role struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	DisplayName string    `json:"display_name"`
+	Description string    `json:"description"`
+	Permissions []string  `json:"permissions"`
+	IsSystem    bool      `json:"is_system"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type UserWithRoles struct {
+	User
+	Roles       []Role   `json:"roles"`
+	Permissions []string `json:"permissions"`
 }
 
 type Provider struct {
@@ -37,6 +54,7 @@ type ApiKey struct {
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 	AvailableModels []Model    `json:"available_models,omitempty"`
+	SharedBy        *string    `json:"shared_by,omitempty"` // 共享者的用户名，非空表示是别人共享的
 }
 
 type Model struct {

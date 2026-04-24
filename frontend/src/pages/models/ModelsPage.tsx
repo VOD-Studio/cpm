@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { modelApi, providerApi } from '@/services/api'
 import type { Model, Provider, CreateModelRequest, UpdateModelRequest } from '@/types'
+import { useAuthStore } from '@/stores/auth'
 import { Plus, Trash2, X, Pencil } from 'lucide-react'
 
 const brandColors: Record<string, string> = {
@@ -147,6 +148,9 @@ export default function ModelsPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const queryClient = useQueryClient()
+  const hasPermission = useAuthStore((s) => s.hasPermission)
+  const canWrite = hasPermission('models:write')
+  const canDelete = hasPermission('models:delete')
 
   const { data: models = [] } = useQuery({
     queryKey: ['models'],
@@ -179,12 +183,14 @@ export default function ModelsPage() {
   const providerMap = Object.fromEntries(providers.map((p) => [p.id, p.name]))
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-xl font-bold text-white">模型管理</h2>
+        {canWrite && (
         <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500">
           <Plus size={16} /> 添加模型
         </button>
+        )}
       </div>
 
       {/* 平台筛选 */}
@@ -218,10 +224,13 @@ export default function ModelsPage() {
                     <span className={`rounded-full px-2 py-0.5 text-xs ${model.is_available ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
                       {model.is_available ? '可用' : '不可用'}
                     </span>
+                    {canWrite && (
                     <button onClick={() => setEditingModel(model)} className="rounded p-1 text-slate-500 opacity-0 hover:bg-white/5 hover:text-white group-hover:opacity-100" title="编辑">
                       <Pencil size={12} />
                     </button>
-                    {confirmDeleteId === model.id ? (
+                    )}
+                    {canDelete && (
+                    confirmDeleteId === model.id ? (
                       <div className="flex gap-1">
                         <button onClick={() => deleteMutation.mutate(model.id)} className="rounded bg-red-600 px-1.5 py-0.5 text-xs text-white">确认</button>
                         <button onClick={() => setConfirmDeleteId(null)} className="rounded bg-slate-600 px-1.5 py-0.5 text-xs text-white">取消</button>
@@ -230,6 +239,7 @@ export default function ModelsPage() {
                       <button onClick={() => setConfirmDeleteId(model.id)} className="rounded p-1 text-slate-500 opacity-0 hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100" title="删除">
                         <Trash2 size={12} />
                       </button>
+                    )
                     )}
                   </div>
                 </div>

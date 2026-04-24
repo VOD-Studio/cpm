@@ -5,6 +5,8 @@ import type {
   LoginRequest,
   RegisterRequest,
   User,
+  UserWithRoles,
+  Role,
   Provider,
   ApiKey,
   CreateApiKeyRequest,
@@ -72,10 +74,6 @@ api.interceptors.response.use(
         }
       }
     }
-    if (!isSilent401) {
-      const msg = error.response?.data?.message || error.response?.data?.error || '请求失败'
-      toast.error(msg)
-    }
     return Promise.reject(error)
   },
 )
@@ -107,6 +105,9 @@ export const apiKeyApi = {
   delete: (id: string) => api.delete(`/keys/${id}`),
   test: (id: string) => api.post<{ status: string }>(`/keys/${id}/test`),
   decrypt: (id: string) => api.get<{ key: string }>(`/keys/${id}/decrypt`),
+  getShares: (id: string) => api.get<User[]>(`/keys/${id}/shares`),
+  setShares: (id: string, userIds: string[]) =>
+    api.put(`/keys/${id}/shares`, { user_ids: userIds }),
 }
 
 // ===== Models =====
@@ -151,6 +152,30 @@ export const volcengineUsageApi = {
 // ===== Ali Usage =====
 export const aliUsageApi = {
   query: (data: AliUsageRequest) => api.post('/ali/usage', data),
+}
+
+// ===== User Admin =====
+export const userAdminApi = {
+  list: () => api.get<UserWithRoles[]>('/users'),
+  create: (data: { username: string; email: string; password: string }) =>
+    api.post('/users', data),
+  update: (id: string, data: { username: string; email: string }) =>
+    api.put(`/users/${id}`, data),
+  delete: (id: string) => api.delete(`/users/${id}`),
+  setActive: (id: string, isActive: boolean) =>
+    api.put(`/users/${id}/active`, { is_active: isActive }),
+  assignRoles: (id: string, roleIds: string[]) =>
+    api.put(`/users/${id}/roles`, { role_ids: roleIds }),
+}
+
+// ===== Roles =====
+export const roleApi = {
+  list: () => api.get<Role[]>('/roles'),
+  create: (data: { name: string; display_name: string; description: string; permissions: string[] }) =>
+    api.post<Role>('/roles', data),
+  update: (id: string, data: { display_name: string; description: string; permissions: string[] }) =>
+    api.put<Role>(`/roles/${id}`, data),
+  delete: (id: string) => api.delete(`/roles/${id}`),
 }
 
 export default api

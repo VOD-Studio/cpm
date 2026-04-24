@@ -10,8 +10,9 @@ import DashboardPage from '@/pages/dashboard/DashboardPage'
 import KeysPage from '@/pages/keys/KeysPage'
 import ModelsPage from '@/pages/models/ModelsPage'
 import ProvidersPage from '@/pages/providers/ProvidersPage'
-import UsagePage from '@/pages/usage/UsagePage'
 import SettingsPage from '@/pages/settings/SettingsPage'
+import UsersPage from '@/pages/users/UsersPage'
+import RolesPage from '@/pages/roles/RolesPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,6 +38,9 @@ export default function App() {
 
   useEffect(() => {
     checkAuth()
+    const handleLogout = () => queryClient.clear()
+    window.addEventListener('auth:logout', handleLogout)
+    return () => window.removeEventListener('auth:logout', handleLogout)
   }, [checkAuth])
 
   return (
@@ -59,7 +63,8 @@ export default function App() {
             <Route path="keys" element={<KeysPage />} />
             <Route path="models" element={<ModelsPage />} />
             <Route path="providers" element={<ProvidersPage />} />
-            <Route path="usage" element={<UsagePage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="roles" element={<RolesPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
