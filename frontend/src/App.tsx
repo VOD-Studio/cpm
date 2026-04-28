@@ -45,7 +45,7 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename="/cpm">
         <Toaster position="top-right" richColors theme="dark" />
         <Routes>
           <Route path="/login" element={<LoginPage />} />

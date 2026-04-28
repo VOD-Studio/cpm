@@ -69,7 +69,7 @@ api.interceptors.response.use(
           localStorage.removeItem('refresh_token')
           if (!isSilent401) {
             toast.error('登录已过期，请重新登录')
-            window.location.href = '/login'
+            window.location.href = '/cpm/login'
           }
         }
       }
