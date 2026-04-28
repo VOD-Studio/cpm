@@ -1,4 +1,4 @@
-.PHONY: up down logs build restart dev-frontend dev-backend dev-db psql
+.PHONY: up down logs build restart dev-frontend dev-backend dev-db psql prod-up prod-down prod-logs
 
 # 一键启动（构建 + 后台运行）
 up:
@@ -48,3 +48,20 @@ dev-frontend:
 # 连接数据库
 psql:
 	docker compose exec postgres psql -U postgres -d coding_plan_manager
+
+# ===== 生产环境命令 =====
+
+# 生产环境启动（构建 + 后台运行）
+prod-up:
+	docker compose -f docker-compose.prod.yml up -d --build
+	@echo ""
+	@echo "===== 生产服务已启动 ====="
+	@echo "访问: https://xunrua.top"
+
+# 生产环境停止
+prod-down:
+	docker compose -f docker-compose.prod.yml down
+
+# 生产环境日志
+prod-logs:
+	docker compose -f docker-compose.prod.yml logs -f
